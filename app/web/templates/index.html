@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}channel-radar — channels{% endblock %}
+{% block content %}
+{% include "partials/add_channel_form.html" %}
+
+{% if not channels %}
+  <div class="empty-state" data-testid="channels-empty">
+    No channels yet. Add one above to start tracking it.
+  </div>
+{% else %}
+<table>
+  <thead>
+    <tr>
+      <th>Channel</th>
+      <th>Health</th>
+      <th>Subscribers</th>
+      <th>Posts total</th>
+      <th>Posts / 30d</th>
+      <th>Avg views</th>
+      <th>Last fetch</th>
+    </tr>
+  </thead>
+  <tbody id="channels-tbody">
+    {% for overview in channels %}
+      {% include "partials/channel_row.html" with context %}
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

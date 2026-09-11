@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% from "partials/metric_card.html" import metric_card %}
+{% block title %}{{ analytics.overview.title | dash }} — channel-radar{% endblock %}
+{% block content %}
+<div class="breadcrumb"><a href="/">Channels</a> / {{ analytics.overview.title | dash }}</div>
+
+<h2>{{ analytics.overview.title | dash }} (@{{ analytics.overview.username }})</h2>
+
+<div class="period-filter">
+  {% for option in period_options %}
+    <a href="?days={{ option }}"{% if option == analytics.period_days %} aria-current="true"{% endif %}>{{ option }}d</a>
+  {% endfor %}
+</div>
+
+<div class="metrics">
+  <div class="metric-card">
+    <div class="metric-label">Health</div>
+    <div class="metric-value">
+      {% with health = analytics.overview.health %}
+        {% include "partials/health_badge.html" %}
+      {% endwith %}
+    </div>
+  </div>
+  {{ metric_card("Subscribers", analytics.overview.subscribers | humanize) }}
+  {{ metric_card("Posts total", analytics.overview.posts_total | humanize) }}
+  {{ metric_card("Posts in period", analytics.overview.posts_in_period | humanize) }}
+  {{ metric_card("Avg views", analytics.overview.avg_views | humanize) }}
+  {{ metric_card("Median views", analytics.overview.median_views | humanize) }}
+  {{ metric_card("Avg reaction rate", analytics.overview.avg_reaction_rate | ratio_pct) }}
+  {{ metric_card("Avg forward rate", analytics.overview.avg_forward_rate | ratio_pct) }}
+  {{ metric_card("Last fetch", analytics.overview.last_fetch_at | ago) }}
+</div>
+
+<div class="chart-wrap">
+  {% if analytics.subscribers_trend | length >= 2 %}
+    <canvas id="subs-chart"></canvas>
+    {% with id = "subs-chart-data", payload = subs_chart %}
+      {% include "partials/chart_data.html" %}
+    {% endwith %}
+  {% else %}
+    <div class="chart-empty">Not enough data yet.</div>
+  {% endif %}
+</div>
+
+<div class="chart-wrap">
+  {% if analytics.daily | length >= 2 %}
+    <canvas id="daily-chart"></canvas>
+    {% with id = "daily-chart-data", payload = daily_chart %}
+      {% include "partials/chart_data.html" %}
+    {% endwith %}
+  {% else %}
+    <div class="chart-empty">Not enough data yet.</div>
+  {% endif %}
+</div>
+
+{% include "partials/digest.html" %}
+
+<table>
+  <thead>
+    <tr>
+      <th>Post</th>
+      <th>Posted</th>
+      <th>Views</th>
+      <th>Forwards</th>
+      <th>Reactions</th>
+      <th>Reaction rate</th>
+      <th>Forward rate</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for post in analytics.posts %}
+      {% include "partials/post_row.html" with context %}
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

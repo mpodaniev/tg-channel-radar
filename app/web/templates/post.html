@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "partials/metric_card.html" import metric_card %}
+{% block title %}Post @{{ post.channel_username }} — channel-radar{% endblock %}
+{% block content %}
+<div class="breadcrumb">
+  <a href="/">Channels</a> /
+  <a href="/channels/{{ post.channel_username }}">{{ post.channel_title | dash }}</a> /
+  Post
+</div>
+
+<p>
+  <a href="{{ tme_post_url(post.channel_username, post.post.message_id) }}"
+     rel="noopener" target="_blank">View on t.me</a>
+</p>
+
+<div class="metrics">
+  {{ metric_card("Views", post.post.views | humanize) }}
+  {{ metric_card("Forwards", post.post.forwards | humanize) }}
+  {{ metric_card("Reactions", post.post.reactions_total | humanize) }}
+  {{ metric_card("Reaction rate", post.post.reaction_rate | ratio_pct) }}
+  {{ metric_card("Forward rate", post.post.forward_rate | ratio_pct) }}
+  {{ metric_card("Posted", post.post.posted_at | dt) }}
+</div>
+
+<div class="post-text">{{ post.text | dash }}</div>
+
+<div class="chart-wrap">
+  {% if post.growth | length >= 2 %}
+    <canvas id="growth-chart"></canvas>
+    {% with id = "growth-chart-data", payload = growth_chart %}
+      {% include "partials/chart_data.html" %}
+    {% endwith %}
+  {% else %}
+    <div class="chart-empty">No view history yet.</div>
+  {% endif %}
+</div>
+{% endblock %}
