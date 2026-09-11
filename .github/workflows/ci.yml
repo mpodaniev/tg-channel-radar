@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [master]
   push:
-    branches: [main]
+    branches: [master]
 
 env:
   DATABASE_URL: postgresql+asyncpg://radar:radar@localhost:5433/radar
