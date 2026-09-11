@@ -15,7 +15,7 @@ from app.services.analytics_types import (
     TrendPoint,
 )
 from app.services.db_queries import latest_post_metric_snapshot_subquery
-from app.services.errors import ChannelNotFoundInDbError, InvalidPeriodError
+from app.services.errors import ChannelNotFoundInDbError, InvalidPeriodError, PostNotFoundError
 
 DEFAULT_PERIOD_DAYS = 30
 _TEXT_PREVIEW_LENGTH = 160
@@ -258,6 +258,7 @@ async def get_post_analytics(session: AsyncSession, post_id: int) -> PostAnalyti
             Post.has_media,
             Post.media_type,
             Channel.username.label("channel_username"),
+            Channel.title.label("channel_title"),
             PostMetricSnapshot.views,
             PostMetricSnapshot.forwards,
             PostMetricSnapshot.reactions_total,
@@ -268,7 +269,9 @@ async def get_post_analytics(session: AsyncSession, post_id: int) -> PostAnalyti
         .outerjoin(PostMetricSnapshot, PostMetricSnapshot.id == latest_metrics.c.latest_id)
         .where(Post.id == post_id)
     )
-    row = result.one()
+    row = result.one_or_none()
+    if row is None:
+        raise PostNotFoundError(f"post not found: {post_id}")
 
     growth_result = await session.execute(
         select(PostMetricSnapshot.captured_at, PostMetricSnapshot.views)
@@ -279,5 +282,9 @@ async def get_post_analytics(session: AsyncSession, post_id: int) -> PostAnalyti
 
     post_summary = _post_row_to_summary(row)
     return PostAnalytics(
-        post=post_summary, channel_username=row.channel_username, growth=growth_points
+        post=post_summary,
+        channel_username=row.channel_username,
+        text=row.text,
+        channel_title=row.channel_title,
+        growth=growth_points,
     )
