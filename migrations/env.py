@@ -20,8 +20,12 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-# secrets live only in app.config (CLAUDE.md) — override whatever is in alembic.ini
-config.set_main_option("sqlalchemy.url", get_settings().normalized_database_url.url)
+# secrets live only in app.config (CLAUDE.md) — override whatever is in alembic.ini,
+# unless a programmatic caller (e.g. tests) already pinned a URL via attributes.
+config.set_main_option(
+    "sqlalchemy.url",
+    config.attributes.get("sqlalchemy_url") or get_settings().normalized_database_url.url,
+)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
