@@ -12,3 +12,7 @@ class ChannelNotFoundInDbError(ServiceError):
 
 class InvalidPeriodError(ServiceError):
     pass
+
+
+class PostNotFoundError(ServiceError):
+    pass

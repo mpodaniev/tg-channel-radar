@@ -1,0 +1,15 @@
+<tr data-testid="post-row">
+  <td>
+    <a href="/posts/{{ post.post_id }}">{{ post.text_preview | dash }}</a>
+    {% if post.anomaly %}
+      <span data-testid="anomaly-badge" class="{{ post.anomaly | anomaly_class }}"
+            title="z={{ '%.2f' | format(post.anomaly.score) }}">{{ post.anomaly.direction.value }}</span>
+    {% endif %}
+  </td>
+  <td title="{{ post.posted_at | dt }}">{{ post.posted_at | ago }}</td>
+  <td>{{ post.views | humanize }}</td>
+  <td>{{ post.forwards | humanize }}</td>
+  <td>{{ post.reactions_total | humanize }}</td>
+  <td>{{ post.reaction_rate | ratio_pct }}</td>
+  <td>{{ post.forward_rate | ratio_pct }}</td>
+</tr>

@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.config import get_settings
+from app.db import get_session
+from app.main import create_app
 
 REPO_ROOT = Path(__file__).parent.parent
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
@@ -85,3 +87,16 @@ async def db_session() -> AsyncIterator[AsyncSession]:
             await session.close()
             await transaction.rollback()
     await engine.dispose()
+
+
+@pytest.fixture
+async def app_client(db_session: AsyncSession) -> AsyncIterator[httpx.AsyncClient]:
+    app = create_app()
+
+    async def _override() -> AsyncIterator[AsyncSession]:
+        yield db_session
+
+    app.dependency_overrides[get_session] = _override
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        yield client

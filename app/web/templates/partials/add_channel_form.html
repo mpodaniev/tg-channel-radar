@@ -1,0 +1,6 @@
+{# The endpoint is added in Stage 6; submitting today returns 404. #}
+<form class="add-channel" method="post" action="/api/channels"
+      hx-post="/api/channels" hx-target="#channels-tbody" hx-swap="afterbegin">
+  <input type="text" name="username" placeholder="@channel or t.me/channel" required>
+  <button type="submit">Add channel</button>
+</form>

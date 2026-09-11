@@ -88,4 +88,6 @@ class ChannelAnalytics:
 class PostAnalytics:
     post: PostSummary
     channel_username: str
+    text: str | None = None
+    channel_title: str | None = None
     growth: list[TrendPoint] = field(default_factory=list)
