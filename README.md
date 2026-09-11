@@ -27,3 +27,24 @@ The test suite is Postgres-only: `tests/conftest.py` creates a `<database>_test`
 against it before any test executes. Network access is forbidden inside tests — a guard fixture
 breaks the `httpx` transport, so the parser is tested against saved HTML fixtures and `ingest_channel`
 is tested with an injected fetcher.
+
+## Web pages
+
+Three server-rendered Jinja2 pages, wired in `app/main.py:create_app`:
+
+- `GET /` — list of tracked channels with health badges, subscriber growth, and an add-channel
+  form (`app/web/templates/index.html`). The form's `POST /api/channels` target lands in Stage 6.
+- `GET /channels/{username}` — subscriber/daily-views charts and the post table for one channel.
+  Accepts `?days=7|30|90` (default 30, from `analytics.DEFAULT_PERIOD_DAYS`); any other value
+  returns 400. `@Username` is normalized via `app.parser.normalize.normalize_username`, so
+  `/channels/@Durov` and `/channels/durov` resolve to the same page.
+- `GET /posts/{post_id}` — full post text, metrics, and a view-growth chart.
+
+All three call straight into `app.services.analytics` and pass only plain DTOs
+(`analytics_types.py`) into templates — no ORM instances ever reach Jinja (every relationship is
+`lazy="raise"`). Business errors (`ChannelNotFoundInDbError`, `PostNotFoundError`,
+`InvalidPeriodError`, ...) are mapped to HTTP status codes in one place, `app/web/errors.py`.
+
+HTMX and Chart.js are vendored under `app/web/static/vendor/` (not loaded from a CDN) so the demo
+doesn't depend on an external network or Render's cold start — versions and checksums are recorded
+in `app/web/static/vendor/VERSIONS.md`.
