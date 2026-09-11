@@ -1,5 +1,4 @@
 from collections.abc import Callable
-from pathlib import Path
 
 import httpx
 import pytest
@@ -9,12 +8,7 @@ from app.parser.errors import ChannelNotFoundError, FetchError, InvalidUsernameE
 from app.parser.normalize import normalize_username, parse_channel_page, parse_count
 from app.parser.tme import TmeClient, fetch_channel
 from app.parser.types import ParsedChannel
-
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-
-
-def _load_fixture(name: str) -> str:
-    return (FIXTURES_DIR / name).read_text()
+from tests.helpers import load_fixture as _load_fixture
 
 
 def _patch_tme(
