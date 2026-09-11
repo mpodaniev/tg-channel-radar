@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Protocol
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +12,7 @@ from app.parser.errors import ChannelNotFoundError, InvalidUsernameError, Parser
 from app.parser.normalize import normalize_username
 from app.parser.tme import fetch_channel
 from app.parser.types import ParsedChannel, ParsedPost
+from app.services.db_queries import latest_post_metric_snapshot_subquery
 from app.services.errors import InvalidChannelUsernameError
 
 DEFAULT_MAX_POSTS = 200
@@ -168,12 +169,7 @@ async def _write_post_metric_snapshots(
 
     post_ids = [post_ids_by_message[post.message_id] for post in measured_posts]
 
-    latest_id_subq = (
-        select(PostMetricSnapshot.post_id, func.max(PostMetricSnapshot.id).label("latest_id"))
-        .where(PostMetricSnapshot.post_id.in_(post_ids))
-        .group_by(PostMetricSnapshot.post_id)
-        .subquery()
-    )
+    latest_id_subq = latest_post_metric_snapshot_subquery(post_ids)
     latest_result = await session.execute(
         select(
             PostMetricSnapshot.post_id,
