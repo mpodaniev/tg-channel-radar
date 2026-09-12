@@ -1,9 +1,11 @@
 import asyncio
+from collections.abc import Callable
 from dataclasses import replace
+from datetime import datetime
 
 import httpx
 
-from app.parser.errors import ChannelNotFoundError, FetchError
+from app.parser.errors import ChannelNotFoundError, FetchError, ParserError
 from app.parser.normalize import normalize_username, parse_channel_page
 from app.parser.types import ParsedChannel, ParsedPost
 
@@ -16,7 +18,8 @@ _TIMEOUT = 15.0
 _MAX_RETRIES = 2
 _RETRY_BACKOFF_SECONDS = 1.0
 _PAGE_DELAY_SECONDS = 0.5
-_DEFAULT_MAX_POSTS = 200
+_DEFAULT_MAX_POSTS = 2000  # safety cap only; `since` is the primary stopping criterion
+_MAX_PAGES = 120
 
 
 class TmeClient:
@@ -58,10 +61,19 @@ class TmeClient:
         raise FetchError(f"failed to fetch {username!r}: exhausted retries")
 
 
+def _reached_cutoff(posts: list[ParsedPost], since: datetime | None) -> bool:
+    if since is None:
+        return False
+    oldest = min((p.posted_at for p in posts if p.posted_at is not None), default=None)
+    return oldest is not None and oldest < since
+
+
 async def fetch_channel(
     username: str,
     *,
+    since: datetime | None = None,
     max_posts: int = _DEFAULT_MAX_POSTS,
+    on_progress: Callable[[int], None] | None = None,
     client: TmeClient | None = None,
 ) -> ParsedChannel:
     normalized = normalize_username(username)
@@ -75,11 +87,24 @@ async def fetch_channel(
         posts: list[ParsedPost] = list(channel.posts)
         seen_ids = {post.message_id for post in posts}
         before = channel.next_before
+        reached_cutoff = _reached_cutoff(channel.posts, since)
+        pages = 1
+        if on_progress is not None:
+            on_progress(len(posts))
 
-        while before is not None and len(posts) < max_posts:
+        while (
+            before is not None
+            and len(posts) < max_posts
+            and not reached_cutoff
+            and pages < _MAX_PAGES
+        ):
             await asyncio.sleep(_PAGE_DELAY_SECONDS)
-            page_html = await client.fetch_channel_page(normalized, before=before)
-            page = parse_channel_page(page_html, username=normalized)
+            try:
+                page_html = await client.fetch_channel_page(normalized, before=before)
+                page = parse_channel_page(page_html, username=normalized)
+            except ParserError:
+                break
+            pages += 1
 
             new_posts = [post for post in page.posts if post.message_id not in seen_ids]
             if not new_posts:
@@ -88,8 +113,17 @@ async def fetch_channel(
             posts.extend(new_posts)
             seen_ids.update(post.message_id for post in new_posts)
             before = page.next_before
+            reached_cutoff = _reached_cutoff(page.posts, since)
+            if on_progress is not None:
+                on_progress(len(posts))
 
-        return replace(channel, posts=posts[:max_posts], next_before=before)
+        kept = [
+            post
+            for post in posts
+            if since is None or post.posted_at is None or post.posted_at >= since
+        ]
+        kept.sort(key=lambda post: post.message_id)
+        return replace(channel, posts=kept[-max_posts:], next_before=before)
     finally:
         if owns_client:
             await client.aclose()

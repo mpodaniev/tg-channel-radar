@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -7,8 +8,10 @@ import app.parser.tme as tme_module
 from app.parser.errors import ChannelNotFoundError, FetchError, InvalidUsernameError
 from app.parser.normalize import normalize_username, parse_channel_page, parse_count
 from app.parser.tme import TmeClient, fetch_channel
-from app.parser.types import ParsedChannel
+from app.parser.types import ParsedChannel, ParsedPost
 from tests.helpers import load_fixture as _load_fixture
+
+_NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def _patch_tme(
@@ -18,6 +21,40 @@ def _patch_tme(
 ) -> None:
     monkeypatch.setattr(tme_module.TmeClient, "fetch_channel_page", fetch_fn)
     monkeypatch.setattr(tme_module, "parse_channel_page", parse_fn)
+
+
+def _page(
+    ids: list[int],
+    days_ago: list[float | None],
+    next_before: int | None,
+) -> ParsedChannel:
+    posts = [
+        ParsedPost(
+            message_id=message_id,
+            posted_at=_NOW - timedelta(days=age) if age is not None else None,
+            text=f"post {message_id}",
+            has_media=False,
+            media_type=None,
+            link_preview_url=None,
+            views=None,
+            forwards=None,
+            reactions_total=None,
+            reactions=None,
+        )
+        for message_id, age in zip(ids, days_ago, strict=True)
+    ]
+    return ParsedChannel(
+        username="durov",
+        title="Durov",
+        description=None,
+        avatar_url=None,
+        subscribers=100,
+        photos_count=None,
+        videos_count=None,
+        links_count=None,
+        posts=posts,
+        next_before=next_before,
+    )
 
 
 class TestNormalizeUsername:
@@ -197,6 +234,226 @@ class TestFetchChannel:
 
         assert result.posts == []
         assert result.next_before is None
+
+    async def test_stops_when_page_oldest_crosses_cutoff(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        since = _NOW - timedelta(days=15)
+        # page1: all fresh; page2: oldest crosses the cutoff; page3: entirely stale (never fetched)
+        p1 = _page([3, 4], [2, 1], next_before=2)
+        p2 = _page([1, 2], [20, 5], next_before=1)
+        p3 = _page([0], [50], next_before=None)
+        pages = [p1, p2, p3]
+        call_count = 0
+
+        async def fake_fetch_channel_page(
+            self: object, username: str, before: int | None = None
+        ) -> str:
+            nonlocal call_count
+            call_count += 1
+            return "page"
+
+        def fake_parse(html: str, *, username: str) -> ParsedChannel:
+            return pages[call_count - 1]
+
+        _patch_tme(monkeypatch, fake_fetch_channel_page, fake_parse)
+
+        result = await fetch_channel("durov", since=since, max_posts=1000)
+
+        assert call_count == 2
+        ids = {post.message_id for post in result.posts}
+        assert ids == {3, 4, 2}
+        assert 1 not in ids
+
+    async def test_continues_while_oldest_post_in_window(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        since = _NOW - timedelta(days=90)
+        p1 = _page([3], [10], next_before=2)
+        p2 = _page([2], [20], next_before=1)
+        p3 = _page([1], [200], next_before=None)
+        pages = [p1, p2, p3]
+        call_count = 0
+
+        async def fake_fetch_channel_page(
+            self: object, username: str, before: int | None = None
+        ) -> str:
+            nonlocal call_count
+            call_count += 1
+            return "page"
+
+        def fake_parse(html: str, *, username: str) -> ParsedChannel:
+            return pages[call_count - 1]
+
+        _patch_tme(monkeypatch, fake_fetch_channel_page, fake_parse)
+
+        result = await fetch_channel("durov", since=since, max_posts=1000)
+
+        assert call_count == 3
+        ids = {post.message_id for post in result.posts}
+        assert 1 not in ids
+
+    async def test_filters_posts_older_than_since(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        since = _NOW - timedelta(days=15)
+        page = _page([1, 2, 3], [20, 10, 5], next_before=None)
+
+        async def fake_fetch_channel_page(
+            self: object, username: str, before: int | None = None
+        ) -> str:
+            return "page"
+
+        def fake_parse(html: str, *, username: str) -> ParsedChannel:
+            return page
+
+        _patch_tme(monkeypatch, fake_fetch_channel_page, fake_parse)
+
+        result = await fetch_channel("durov", since=since, max_posts=1000)
+
+        assert {post.message_id for post in result.posts} == {2, 3}
+
+    async def test_keeps_posts_with_missing_posted_at(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        since = _NOW - timedelta(days=15)
+        page = _page([1, 2, 3], [20, None, 5], next_before=None)
+
+        async def fake_fetch_channel_page(
+            self: object, username: str, before: int | None = None
+        ) -> str:
+            return "page"
+
+        def fake_parse(html: str, *, username: str) -> ParsedChannel:
+            return page
+
+        _patch_tme(monkeypatch, fake_fetch_channel_page, fake_parse)
+
+        result = await fetch_channel("durov", since=since, max_posts=1000)
+
+        ids = {post.message_id for post in result.posts}
+        assert ids == {2, 3}
+        assert 1 not in ids
+
+    async def test_all_none_dates_page_does_not_stop_pagination(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        since = _NOW - timedelta(days=15)
+        p1 = _page([2, 3], [None, None], next_before=1)
+        p2 = _page([1], [100], next_before=None)
+        pages = [p1, p2]
+        call_count = 0
+
+        async def fake_fetch_channel_page(
+            self: object, username: str, before: int | None = None
+        ) -> str:
+            nonlocal call_count
+            call_count += 1
+            return "page"
+
+        def fake_parse(html: str, *, username: str) -> ParsedChannel:
+            return pages[call_count - 1]
+
+        _patch_tme(monkeypatch, fake_fetch_channel_page, fake_parse)
+
+        result = await fetch_channel("durov", since=since, max_posts=1000)
+
+        assert call_count == 2
+        assert 1 not in {post.message_id for post in result.posts}
+
+    async def test_safety_cap_keeps_newest_posts(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        p1 = _page([5, 6], [2, 1], next_before=4)
+        p2 = _page([3, 4], [4, 3], next_before=2)
+        p3 = _page([1, 2], [6, 5], next_before=None)
+        pages = [p1, p2, p3]
+        call_count = 0
+
+        async def fake_fetch_channel_page(
+            self: object, username: str, before: int | None = None
+        ) -> str:
+            nonlocal call_count
+            call_count += 1
+            return "page"
+
+        def fake_parse(html: str, *, username: str) -> ParsedChannel:
+            return pages[call_count - 1]
+
+        _patch_tme(monkeypatch, fake_fetch_channel_page, fake_parse)
+
+        max_posts = 3
+        result = await fetch_channel("durov", max_posts=max_posts)
+
+        assert len(result.posts) == max_posts
+        assert {post.message_id for post in result.posts} == {4, 5, 6}
+
+    async def test_partial_failure_returns_collected_posts(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        p1 = _page([1, 2], [2, 1], next_before=1)
+        call_count = 0
+
+        async def fake_fetch_channel_page(
+            self: object, username: str, before: int | None = None
+        ) -> str:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return "page"
+            raise FetchError("boom")
+
+        def fake_parse(html: str, *, username: str) -> ParsedChannel:
+            return p1
+
+        _patch_tme(monkeypatch, fake_fetch_channel_page, fake_parse)
+
+        result = await fetch_channel("durov", max_posts=1000)
+
+        assert {post.message_id for post in result.posts} == {1, 2}
+
+    async def test_since_none_keeps_count_only_behaviour(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        p1 = _page([3, 4], [2, 1], next_before=2)
+        p2 = _page([1, 2], [4, 3], next_before=None)
+        pages = [p1, p2]
+        call_count = 0
+
+        async def fake_fetch_channel_page(
+            self: object, username: str, before: int | None = None
+        ) -> str:
+            nonlocal call_count
+            call_count += 1
+            return "page"
+
+        def fake_parse(html: str, *, username: str) -> ParsedChannel:
+            return pages[call_count - 1]
+
+        _patch_tme(monkeypatch, fake_fetch_channel_page, fake_parse)
+
+        result = await fetch_channel("durov", since=None, max_posts=1000)
+
+        assert {post.message_id for post in result.posts} == {1, 2, 3, 4}
+
+    async def test_reports_progress_after_each_page(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        p1 = _page([3, 4], [2, 1], next_before=2)
+        p2 = _page([1, 2], [4, 3], next_before=None)
+        pages = [p1, p2]
+        call_count = 0
+
+        async def fake_fetch_channel_page(
+            self: object, username: str, before: int | None = None
+        ) -> str:
+            nonlocal call_count
+            call_count += 1
+            return "page"
+
+        def fake_parse(html: str, *, username: str) -> ParsedChannel:
+            return pages[call_count - 1]
+
+        _patch_tme(monkeypatch, fake_fetch_channel_page, fake_parse)
+
+        seen: list[int] = []
+        await fetch_channel("durov", max_posts=1000, on_progress=seen.append)
+
+        assert seen == [2, 4]
 
 
 class TestTmeClientFetchChannelPage:
