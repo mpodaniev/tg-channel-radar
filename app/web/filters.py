@@ -23,7 +23,7 @@ def humanize(value: int | float | None) -> str:
     if value is None:
         return "—"
     if abs(value) < _HUMANIZE_THRESHOLD:
-        return f"{value:,}".replace(",", " ")
+        return f"{value:,.0f}".replace(",", " ")
     for divisor, suffix in _HUMANIZE_STEPS:
         if abs(value) >= divisor:
             return f"{value / divisor:.1f}{suffix}"
