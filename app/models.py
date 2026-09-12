@@ -134,8 +134,9 @@ class PostAiAnnotation(Base):
         ForeignKey("posts.id", ondelete="CASCADE"), unique=True, nullable=False
     )
     category: Mapped[str | None] = mapped_column(String(64))
-    topics_json: Mapped[dict | None] = mapped_column(JSONB)
+    topics_json: Mapped[list | None] = mapped_column(JSONB)
     summary: Mapped[str | None] = mapped_column(Text)
+    anomaly_note: Mapped[str | None] = mapped_column(Text)
     model: Mapped[str | None] = mapped_column(String(64))
     prompt_version: Mapped[str | None] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(
