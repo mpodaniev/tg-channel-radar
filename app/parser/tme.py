@@ -8,6 +8,7 @@ import httpx
 from app.parser.errors import ChannelNotFoundError, FetchError, ParserError
 from app.parser.normalize import normalize_username, parse_channel_page
 from app.parser.types import ParsedChannel, ParsedPost
+from app.retry import backoff_delay
 
 _BASE_URL = "https://t.me/s/"
 _USER_AGENT = (
@@ -44,7 +45,7 @@ class TmeClient:
             except httpx.HTTPError as exc:
                 if is_last_attempt:
                     raise FetchError(f"failed to fetch {username!r}: {exc}") from exc
-                await asyncio.sleep(_RETRY_BACKOFF_SECONDS * (2**attempt))
+                await asyncio.sleep(backoff_delay(attempt, _RETRY_BACKOFF_SECONDS))
                 continue
 
             if response.status_code == 200:
@@ -56,7 +57,7 @@ class TmeClient:
                 raise ChannelNotFoundError(f"no web preview for channel {username!r}")
             if is_last_attempt:
                 raise FetchError(f"failed to fetch {username!r}: HTTP {response.status_code}")
-            await asyncio.sleep(_RETRY_BACKOFF_SECONDS * (2**attempt))
+            await asyncio.sleep(backoff_delay(attempt, _RETRY_BACKOFF_SECONDS))
 
         raise FetchError(f"failed to fetch {username!r}: exhausted retries")
 
