@@ -1,14 +1,21 @@
+{% set backfill_progress = get_backfill_progress(overview.username) %}
 <tr id="channel-row-{{ overview.username }}" data-testid="channel-row"
     data-username="{{ overview.username }}" data-status="{{ overview.status }}"
-    {% if channel_row_poll_url and overview.status == "pending" %}
+    {% if channel_row_poll_url and (overview.status == "pending" or backfill_progress is not none) %}
       hx-get="{{ channel_row_poll_url.format(username=overview.username) }}"
       hx-trigger="every 2s" hx-swap="outerHTML"
     {% endif %}>
   <td><a href="/channels/{{ overview.username }}">{{ overview.title | dash }}</a> (@{{ overview.username }})</td>
   <td>
-    {% with health = overview.health %}
-      {% include "partials/health_badge.html" %}
-    {% endwith %}
+    {% if overview.status == "pending" %}
+      <span class="status-note">{{ overview.status | status_note }}</span>
+    {% elif overview.status in failed_channel_statuses %}
+      <span class="status-note status-note--error" title="{{ overview.last_error | dash }}">{{ overview.status | status_note }}</span>
+    {% else %}
+      {% with health = overview.health %}
+        {% include "partials/health_badge.html" %}
+      {% endwith %}
+    {% endif %}
   </td>
   <td>
     {{ overview.subscribers | humanize }}
@@ -16,8 +23,22 @@
       <span class="growth">({{ overview.subscribers_growth.absolute | signed }})</span>
     {% endif %}
   </td>
-  <td>{{ overview.posts_total | humanize }}</td>
+  <td>
+    {{ overview.posts_total | humanize }}
+    {% include "partials/backfill_badge.html" %}
+  </td>
   <td>{{ overview.posts_in_period | humanize }}</td>
   <td>{{ overview.avg_views | humanize }}</td>
   <td title="{{ overview.last_fetch_at | dt }}">{{ overview.last_fetch_at | ago }}</td>
+  <td class="row-actions">
+    {% if overview.status in failed_channel_statuses %}
+      <button type="button"
+              hx-post="/api/channels/{{ overview.username }}/refresh"
+              hx-target="#channel-row-{{ overview.username }}" hx-swap="outerHTML">Retry</button>
+    {% endif %}
+    <button type="button"
+            hx-delete="/api/channels/{{ overview.username }}"
+            hx-target="#channel-row-{{ overview.username }}" hx-swap="outerHTML"
+            hx-confirm="Delete @{{ overview.username }}?">Delete</button>
+  </td>
 </tr>

@@ -1,6 +1,6 @@
 import asyncio
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
@@ -15,6 +15,7 @@ from sqlalchemy.pool import NullPool
 from app.config import get_settings
 from app.db import get_session
 from app.main import create_app
+from app.web import background
 
 REPO_ROOT = Path(__file__).parent.parent
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
@@ -29,6 +30,12 @@ async def _forbidden_transport(
 @pytest.fixture(autouse=True, scope="session")
 def _guard_network() -> None:
     httpx.AsyncHTTPTransport.handle_async_request = _forbidden_transport  # type: ignore[method-assign]
+
+
+@pytest.fixture(autouse=True)
+def _clear_backfill_progress() -> Iterator[None]:
+    yield
+    background._backfill_progress.clear()
 
 
 def test_database_url() -> str:

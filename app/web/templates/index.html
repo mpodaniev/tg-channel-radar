@@ -2,12 +2,8 @@
 {% block title %}channel-radar — channels{% endblock %}
 {% block content %}
 {% include "partials/add_channel_form.html" %}
+<div id="add-channel-error" class="form-error"></div>
 
-{% if not channels %}
-  <div class="empty-state" data-testid="channels-empty">
-    No channels yet. Add one above to start tracking it.
-  </div>
-{% else %}
 <table>
   <thead>
     <tr>
@@ -18,13 +14,19 @@
       <th>Posts / 30d</th>
       <th>Avg views</th>
       <th>Last fetch</th>
+      <th></th>
     </tr>
   </thead>
   <tbody id="channels-tbody">
     {% for overview in channels %}
       {% include "partials/channel_row.html" with context %}
+    {% else %}
+      <tr id="channels-empty" data-testid="channels-empty">
+        <td colspan="8" class="empty-state">
+          No channels yet. Add one above to start tracking it.
+        </td>
+      </tr>
     {% endfor %}
   </tbody>
 </table>
-{% endif %}
 {% endblock %}

@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-from app.web import filters
+from app.web import background, filters
 
 WEB_DIR = Path(__file__).parent
 TEMPLATES_DIR = WEB_DIR / "templates"
@@ -23,4 +23,7 @@ templates.env.filters["ago"] = filters.ago
 templates.env.filters["dash"] = filters.dash
 templates.env.filters["health_class"] = filters.health_class
 templates.env.filters["anomaly_class"] = filters.anomaly_class
+templates.env.filters["status_note"] = filters.status_note
+templates.env.globals["failed_channel_statuses"] = filters.FAILED_CHANNEL_STATUSES
 templates.env.globals["tme_post_url"] = filters.tme_post_url
+templates.env.globals["get_backfill_progress"] = background.get_backfill_progress

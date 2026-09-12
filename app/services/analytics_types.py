@@ -73,6 +73,7 @@ class ChannelOverview:
     avg_forward_rate: float | None
     last_fetch_at: datetime | None
     consecutive_failures: int
+    last_error: str | None
 
 
 @dataclass(frozen=True)

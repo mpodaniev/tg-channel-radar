@@ -33,7 +33,20 @@ is tested with an injected fetcher.
 Three server-rendered Jinja2 pages, wired in `app/main.py:create_app`:
 
 - `GET /` — list of tracked channels with health badges, subscriber growth, and an add-channel
-  form (`app/web/templates/index.html`). The form's `POST /api/channels` target lands in Stage 6.
+  form (`app/web/templates/index.html`). Submitting `@channel` / `t.me/channel` hits
+  `POST /api/channels` (`app/web/routes_api.py`), which creates the channel as `pending` and
+  schedules a two-phase first ingest (`app/web/background.py`) as a `BackgroundTasks` job in
+  its own DB session: a fast pass (20 posts, no date window) makes the channel `active` in a
+  few seconds, then a deep pass runs in the background collecting the last 90 days of posts
+  (`ingest.COLLECT_WINDOW_DAYS`, matching the longest dashboard filter), capped at 2000 posts /
+  120 pages as a safety limit for hyperactive channels. The new row polls
+  `GET /api/channels/{username}/status` every 2s
+  (`hx-get`) until the channel leaves `pending`; a failed channel (`not_found` / `private` /
+  `error`) stays visible with an explanation and `Retry` (`POST .../refresh`) / `Delete`
+  (`DELETE /api/channels/{username}`) actions. All four endpoints render HTML fragments, not
+  JSON — the form's own errors (invalid username, duplicate channel) come back as a
+  `partials/add_channel_error.html` fragment with `HX-Retarget`/`HX-Reswap` headers instead of
+  going through the global JSON error handler.
 - `GET /channels/{username}` — subscriber/daily-views charts and the post table for one channel.
   Accepts `?days=7|30|90` (default 30, from `analytics.DEFAULT_PERIOD_DAYS`); any other value
   returns 400. `@Username` is normalized via `app.parser.normalize.normalize_username`, so
