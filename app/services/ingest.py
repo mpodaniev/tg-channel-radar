@@ -1,6 +1,7 @@
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
 from sqlalchemy import desc, select
@@ -8,18 +9,26 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Channel, ChannelSnapshot, ChannelStatus, Post, PostMetricSnapshot
-from app.parser.errors import ChannelNotFoundError, InvalidUsernameError, ParserError
-from app.parser.normalize import normalize_username
+from app.parser.errors import ChannelNotFoundError, ParserError
 from app.parser.tme import fetch_channel
 from app.parser.types import ParsedChannel, ParsedPost
+from app.services import channels
+from app.services.analytics import PERIOD_OPTIONS
 from app.services.db_queries import latest_post_metric_snapshot_subquery
-from app.services.errors import InvalidChannelUsernameError
 
-DEFAULT_MAX_POSTS = 200
+COLLECT_WINDOW_DAYS = max(PERIOD_OPTIONS)  # collect enough history to cover every dashboard filter
+SAFETY_MAX_POSTS = 2000
 
 
 class ChannelFetcher(Protocol):
-    async def __call__(self, username: str, *, max_posts: int) -> ParsedChannel: ...
+    async def __call__(
+        self,
+        username: str,
+        *,
+        since: datetime | None,
+        max_posts: int,
+        on_progress: Callable[[int], None] | None,
+    ) -> ParsedChannel: ...
 
 
 @dataclass(frozen=True)
@@ -44,18 +53,6 @@ def _content_hash(post: ParsedPost) -> str:
         str(post.has_media),
     ]
     return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
-
-
-async def _get_or_create_channel(session: AsyncSession, username: str) -> Channel:
-    result = await session.execute(select(Channel).where(Channel.username == username))
-    channel = result.scalar_one_or_none()
-    if channel is not None:
-        return channel
-
-    channel = Channel(username=username, status=ChannelStatus.PENDING.value)
-    session.add(channel)
-    await session.flush()
-    return channel
 
 
 async def _record_failure(
@@ -160,8 +157,7 @@ async def _write_post_metric_snapshots(
         post
         for post in parsed_posts
         if any(
-            v is not None
-            for v in (post.views, post.forwards, post.reactions_total, post.reactions)
+            v is not None for v in (post.views, post.forwards, post.reactions_total, post.reactions)
         )
     ]
     if not measured_posts:
@@ -249,21 +245,20 @@ async def ingest_channel(
     session: AsyncSession,
     username: str,
     *,
-    max_posts: int = DEFAULT_MAX_POSTS,
+    since_days: int | None = COLLECT_WINDOW_DAYS,
+    max_posts: int = SAFETY_MAX_POSTS,
     fetcher: ChannelFetcher | None = None,
+    on_progress: Callable[[int], None] | None = None,
 ) -> IngestResult:
     fetch = fetcher or fetch_channel
 
-    try:
-        normalized = normalize_username(username)
-    except InvalidUsernameError as exc:
-        raise InvalidChannelUsernameError(str(exc)) from exc
-
-    channel = await _get_or_create_channel(session, normalized)
+    normalized = channels.normalize(username)
+    channel = await channels.get_or_create_channel(session, normalized)
     now = datetime.now(UTC)
+    since = now - timedelta(days=since_days) if since_days is not None else None
 
     try:
-        parsed = await fetch(normalized, max_posts=max_posts)
+        parsed = await fetch(normalized, since=since, max_posts=max_posts, on_progress=on_progress)
     except ChannelNotFoundError as exc:
         return await _record_failure(session, channel, ChannelStatus.NOT_FOUND, exc, now)
     except ParserError as exc:

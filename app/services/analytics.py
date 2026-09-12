@@ -1,6 +1,7 @@
 from collections import defaultdict
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
+from typing import Final
 
 from sqlalchemy import Row, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +19,7 @@ from app.services.db_queries import latest_post_metric_snapshot_subquery
 from app.services.errors import ChannelNotFoundInDbError, InvalidPeriodError, PostNotFoundError
 
 DEFAULT_PERIOD_DAYS = 30
+PERIOD_OPTIONS: Final[tuple[int, ...]] = (7, 30, 90)
 _TEXT_PREVIEW_LENGTH = 160
 
 
@@ -86,6 +88,7 @@ def _build_channel_overview(
         ),
         last_fetch_at=channel.last_fetch_at,
         consecutive_failures=channel.consecutive_failures,
+        last_error=channel.last_error,
     )
 
 
@@ -180,12 +183,18 @@ async def get_channel_analytics(
 
 
 async def list_channels_overview(
-    session: AsyncSession, *, now: datetime | None = None
+    session: AsyncSession,
+    *,
+    now: datetime | None = None,
+    usernames: Sequence[str] | None = None,
 ) -> list[ChannelOverview]:
     now = now or datetime.now(UTC)
     period_start = now - timedelta(days=DEFAULT_PERIOD_DAYS)
 
-    channels_result = await session.execute(select(Channel))
+    channels_query = select(Channel)
+    if usernames is not None:
+        channels_query = channels_query.where(Channel.username.in_(usernames))
+    channels_result = await session.execute(channels_query)
     channels = channels_result.scalars().all()
     if not channels:
         return []

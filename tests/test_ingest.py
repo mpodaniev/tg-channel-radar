@@ -1,15 +1,20 @@
+from collections.abc import Callable
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Channel, ChannelSnapshot, ChannelStatus, Post, PostMetricSnapshot
 from app.parser.errors import ChannelNotFoundError, FetchError
 from app.parser.normalize import parse_channel_page
 from app.parser.types import ParsedChannel, ParsedPost
+from app.services import ingest
 from app.services.errors import InvalidChannelUsernameError
 from app.services.ingest import ChannelFetcher, ingest_channel
+from app.web import deps
+from tests.helpers import count as _count
 from tests.helpers import load_fixture
 
 
@@ -32,17 +37,18 @@ def _minimal_channel(post: ParsedPost) -> ParsedChannel:
 
 
 def _fetcher(result: ParsedChannel | Exception) -> ChannelFetcher:
-    async def fetch(username: str, *, max_posts: int) -> ParsedChannel:
+    async def fetch(
+        username: str,
+        *,
+        since: datetime | None,
+        max_posts: int,
+        on_progress: Callable[[int], None] | None = None,
+    ) -> ParsedChannel:
         if isinstance(result, Exception):
             raise result
         return result
 
     return fetch
-
-
-async def _count(session: AsyncSession, model: type) -> int:
-    result = await session.execute(select(func.count()).select_from(model))
-    return result.scalar_one()
 
 
 async def test_first_run_creates_channel_and_posts(db_session: AsyncSession) -> None:
@@ -282,3 +288,48 @@ async def test_normalizes_username_to_same_channel_row(db_session: AsyncSession)
     await ingest_channel(db_session, "https://t.me/durov", fetcher=_fetcher(channel))
 
     assert await _count(db_session, Channel) == 1
+
+
+async def test_passes_ninety_day_cutoff_to_fetcher(db_session: AsyncSession) -> None:
+    channel = _base_channel()
+    seen_since: dict[str, datetime | None] = {}
+
+    async def fetch(
+        username: str,
+        *,
+        since: datetime | None,
+        max_posts: int,
+        on_progress: Callable[[int], None] | None = None,
+    ) -> ParsedChannel:
+        seen_since["since"] = since
+        return channel
+
+    now_before = datetime.now(UTC)
+    await ingest_channel(db_session, "durov", fetcher=fetch)
+
+    since = seen_since["since"]
+    assert since is not None
+    assert abs((now_before - since) - timedelta(days=90)) < timedelta(seconds=5)
+
+
+async def test_since_days_none_passes_no_cutoff(db_session: AsyncSession) -> None:
+    channel = _base_channel()
+    seen_since: dict[str, datetime | None] = {}
+
+    async def fetch(
+        username: str,
+        *,
+        since: datetime | None,
+        max_posts: int,
+        on_progress: Callable[[int], None] | None = None,
+    ) -> ParsedChannel:
+        seen_since["since"] = since
+        return channel
+
+    await ingest_channel(db_session, "durov", since_days=None, fetcher=fetch)
+
+    assert seen_since["since"] is None
+
+
+def test_collect_window_covers_longest_dashboard_period() -> None:
+    assert max(deps.PERIOD_OPTIONS) <= ingest.COLLECT_WINDOW_DAYS

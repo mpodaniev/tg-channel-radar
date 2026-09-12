@@ -10,6 +10,10 @@ class ChannelNotFoundInDbError(ServiceError):
     pass
 
 
+class ChannelAlreadyExistsError(ServiceError):
+    pass
+
+
 class InvalidPeriodError(ServiceError):
     pass
 
