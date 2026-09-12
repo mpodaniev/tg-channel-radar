@@ -22,7 +22,9 @@
     </div>
   </div>
   {{ metric_card("Subscribers", analytics.overview.subscribers | humanize) }}
-  {{ metric_card("Posts total", analytics.overview.posts_total | humanize) }}
+  {% with username = analytics.overview.username, posts_total = analytics.overview.posts_total %}
+    {% include "partials/posts_total_card.html" %}
+  {% endwith %}
   {{ metric_card("Posts in period", analytics.overview.posts_in_period | humanize) }}
   {{ metric_card("Avg views", analytics.overview.avg_views | humanize) }}
   {{ metric_card("Median views", analytics.overview.median_views | humanize) }}

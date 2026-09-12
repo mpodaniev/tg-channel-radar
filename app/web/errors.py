@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.services.errors import (
+    ChannelAlreadyExistsError,
     ChannelNotFoundInDbError,
     InvalidChannelUsernameError,
     InvalidPeriodError,
@@ -20,6 +21,7 @@ _STATUS_BY_ERROR: dict[type[ServiceError], int] = {
     InvalidPeriodError: 400,
     ChannelNotFoundInDbError: 404,
     PostNotFoundError: 404,
+    ChannelAlreadyExistsError: 409,
 }
 
 

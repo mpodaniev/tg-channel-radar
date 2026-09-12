@@ -1,0 +1,5 @@
+{% if backfill_progress is not none %}
+  <span class="status-note" title="Background backfill is still running">
+    (↻ {{ backfill_progress | humanize }})
+  </span>
+{% endif %}

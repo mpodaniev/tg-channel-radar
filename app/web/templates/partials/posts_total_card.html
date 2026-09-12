@@ -1,0 +1,12 @@
+{% set backfill_progress = get_backfill_progress(username) %}
+<div class="metric-card" id="posts-total-card-{{ username }}"
+    {% if backfill_progress is not none %}
+      hx-get="/api/channels/{{ username }}/posts-total"
+      hx-trigger="every 2s" hx-swap="outerHTML"
+    {% endif %}>
+  <div class="metric-label">Posts total</div>
+  <div class="metric-value">
+    {{ posts_total | humanize }}
+    {% include "partials/backfill_badge.html" %}
+  </div>
+</div>

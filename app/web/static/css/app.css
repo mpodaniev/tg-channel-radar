@@ -231,3 +231,36 @@ form.add-channel button {
   text-align: center;
   padding: 64px 16px;
 }
+
+.status-note {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.status-note--error {
+  color: var(--red);
+}
+
+.row-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.row-actions button {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.form-error:empty {
+  display: none;
+}
+
+.form-error-message {
+  color: var(--red);
+  margin: -8px 0 16px;
+}

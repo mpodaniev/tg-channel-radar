@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_session
 from app.services import analytics
 from app.web import deps, presenters
+from app.web.routes_api import CHANNEL_ROW_POLL_URL
 from app.web.templating import templates
 
 router = APIRouter(tags=["pages"])
@@ -16,7 +17,7 @@ async def index(request: Request, session: AsyncSession = Depends(get_session)) 
     return templates.TemplateResponse(
         request,
         "index.html",
-        {"channels": overviews, "channel_row_poll_url": None},
+        {"channels": overviews, "channel_row_poll_url": CHANNEL_ROW_POLL_URL},
     )
 
 

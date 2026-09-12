@@ -2,6 +2,15 @@ from datetime import UTC, date, datetime
 
 from app.services.analytics_types import Anomaly, SourceHealth
 
+_STATUS_NOTES: dict[str, str] = {
+    "pending": "Collecting first posts…",
+    "not_found": "Channel not found",
+    "private": "Channel is private or has no public preview",
+    "error": "Failed to collect data",
+}
+
+FAILED_CHANNEL_STATUSES = frozenset({"not_found", "private", "error"})
+
 _HUMANIZE_THRESHOLD = 10_000
 _HUMANIZE_STEPS: tuple[tuple[float, str], ...] = (
     (1_000_000_000, "B"),
@@ -87,6 +96,10 @@ def anomaly_class(anomaly: Anomaly | None) -> str:
     if anomaly is None:
         return ""
     return f"anomaly anomaly--{anomaly.direction.value}"
+
+
+def status_note(status: str) -> str:
+    return _STATUS_NOTES.get(status, status)
 
 
 def tme_post_url(username: str, message_id: int) -> str:
