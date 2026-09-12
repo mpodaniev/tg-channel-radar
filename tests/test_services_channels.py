@@ -36,6 +36,20 @@ def test_normalize_rejects_invalid_usernames(raw: str) -> None:
         channels.normalize(raw)
 
 
+async def test_get_channel_or_raise_returns_existing_channel(db_session: AsyncSession) -> None:
+    existing = await make_channel(db_session, username="durov", status=ChannelStatus.ACTIVE.value)
+
+    channel = await channels.get_channel_or_raise(db_session, "durov")
+
+    assert channel.id == existing.id
+    assert channel.username == "durov"
+
+
+async def test_get_channel_or_raise_unknown_raises(db_session: AsyncSession) -> None:
+    with pytest.raises(ChannelNotFoundInDbError):
+        await channels.get_channel_or_raise(db_session, "nope")
+
+
 async def test_get_or_create_channel_creates_pending_row(db_session: AsyncSession) -> None:
     channel = await channels.get_or_create_channel(db_session, "durov")
 
