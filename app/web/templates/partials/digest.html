@@ -1,4 +1,16 @@
-{# Stage 7 seam: AI-generated channel digest will render here. #}
-{% if digest %}
-  <div class="chart-wrap">{{ digest }}</div>
-{% endif %}
+<div class="chart-wrap" id="digest">
+  {% if digest %}
+    <ul class="digest-bullets">
+      {% for bullet in digest.bullets %}
+        <li>{{ bullet }}</li>
+      {% endfor %}
+    </ul>
+  {% elif attempted %}
+    <div class="chart-empty">Digest temporarily unavailable — try again later.</div>
+  {% else %}
+    <button hx-post="/api/channels/{{ username }}/digest?days={{ days }}"
+            hx-target="#digest" hx-swap="outerHTML"
+            hx-disabled-elt="this" hx-indicator="#digest-spinner">Generate digest</button>
+    <span id="digest-spinner" class="htmx-indicator digest-spinner">Generating…</span>
+  {% endif %}
+</div>

@@ -27,6 +27,13 @@ async def _find_by_username(session: AsyncSession, username: str) -> Channel | N
     return result.scalar_one_or_none()
 
 
+async def get_channel_or_raise(session: AsyncSession, username: str) -> Channel:
+    channel = await _find_by_username(session, username)
+    if channel is None:
+        raise ChannelNotFoundInDbError(f"channel not found: {username}")
+    return channel
+
+
 async def get_or_create_channel(session: AsyncSession, username: str) -> Channel:
     channel = await _find_by_username(session, username)
     if channel is not None:

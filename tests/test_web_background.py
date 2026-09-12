@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import pytest
 
 from app.models import ChannelStatus
-from app.web import background
+from app.web import background, deps
 
 
 @dataclass
@@ -93,3 +93,44 @@ async def test_failed_first_ingest_skips_deep_ingest(monkeypatch: pytest.MonkeyP
 
     assert len(recorder.calls) == 1
     assert background.get_backfill_progress("durov") is None
+
+
+class _FakeSettings:
+    def __init__(self, *, ai_auto_classify_enabled: bool) -> None:
+        self.ai_auto_classify_enabled = ai_auto_classify_enabled
+
+
+async def test_classify_best_effort_skipped_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        background, "get_settings", lambda: _FakeSettings(ai_auto_classify_enabled=False)
+    )
+    calls: list[str] = []
+
+    async def _fake_classify_new_posts(session, username, *, client):
+        calls.append(username)
+
+    monkeypatch.setattr(background.ai_tasks, "classify_new_posts", _fake_classify_new_posts)
+
+    await background._classify_best_effort("durov")
+
+    assert calls == []
+
+
+async def test_classify_best_effort_runs_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    _stub_session_factory(monkeypatch)
+    monkeypatch.setattr(
+        background, "get_settings", lambda: _FakeSettings(ai_auto_classify_enabled=True)
+    )
+    monkeypatch.setattr(deps, "ai_client", lambda: object())
+    calls: list[str] = []
+
+    async def _fake_classify_new_posts(session, username, *, client):
+        calls.append(username)
+
+    monkeypatch.setattr(background.ai_tasks, "classify_new_posts", _fake_classify_new_posts)
+
+    await background._classify_best_effort("durov")
+
+    assert calls == ["durov"]

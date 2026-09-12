@@ -20,3 +20,7 @@ class InvalidPeriodError(ServiceError):
 
 class PostNotFoundError(ServiceError):
     pass
+
+
+class AiUnavailableError(ServiceError):
+    pass

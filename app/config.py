@@ -39,6 +39,14 @@ class Settings(BaseSettings):
 
     database_url: str
     gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.6-flash"
+    ai_daily_call_budget: int = 200
+    ai_failure_threshold: int = 3
+    ai_cooldown_minutes: int = 10
+    # Gemini free-tier daily quota (20 requests/day) keeps getting exhausted by
+    # auto-classification on every ingest, leaving no budget for manual digest
+    # generation. Flip back to True once the quota situation is sorted.
+    ai_auto_classify_enabled: bool = False
     refresh_token: str
     app_env: Literal["local", "prod"] = "local"
     log_level: str = "INFO"

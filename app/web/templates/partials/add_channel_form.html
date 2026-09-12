@@ -1,6 +1,7 @@
 <form class="add-channel" method="post" action="/api/channels"
       hx-post="/api/channels" hx-target="#channels-tbody" hx-swap="afterbegin"
       hx-on::after-request="if(event.detail.successful && !event.detail.xhr.getResponseHeader('HX-Retarget')) this.reset()">
-  <input type="text" name="username" placeholder="@channel or t.me/channel" required>
+  <input type="text" name="username" placeholder="@channel or t.me/channel" required
+         autocomplete="off" data-bwignore data-lpignore="true" data-1p-ignore data-form-type="other">
   <button type="submit">Add channel</button>
 </form>

@@ -9,6 +9,7 @@ import httpx
 import pytest
 from alembic import command
 from alembic.config import Config
+from google.genai import Client as GenaiClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -16,6 +17,11 @@ from app.config import get_settings
 from app.db import get_session
 from app.main import create_app
 from app.web import background
+
+
+def _forbidden_genai_client(self: GenaiClient, *args: object, **kwargs: object) -> None:
+    raise RuntimeError("real Gemini API access is forbidden in tests")
+
 
 REPO_ROOT = Path(__file__).parent.parent
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
@@ -30,6 +36,7 @@ async def _forbidden_transport(
 @pytest.fixture(autouse=True, scope="session")
 def _guard_network() -> None:
     httpx.AsyncHTTPTransport.handle_async_request = _forbidden_transport  # type: ignore[method-assign]
+    GenaiClient.__init__ = _forbidden_genai_client  # type: ignore[method-assign]
 
 
 @pytest.fixture(autouse=True)

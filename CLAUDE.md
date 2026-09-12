@@ -10,13 +10,22 @@
   accepts plain types/DTOs and a DB session, returns plain types/DTOs or raises its own exceptions.
 - `app/web/routes_*` — input validation, calling a service, rendering the response (HTML or JSON)
   only. No business logic, no direct SQL/ORM queries bypassing the service layer.
+- `app/services/ai/` — the *only* place in the codebase allowed to call an LLM. `client.py` owns
+  all resilience (timeout, retries, circuit breaker, daily budget, disabled-when-no-key) behind
+  `AiGateway`/`LlmClient`; nothing outside this module talks to `google.genai` directly.
+  `prompts.py` holds prompt builders and JSON schemas behind a `PROMPT_VERSION` constant — bump it
+  when a prompt changes so cached rows (`channel_digests`, `post_ai_annotations`) don't mix
+  results from different prompts. `tasks.py` is the only place that reads/writes those tables;
+  every task catches `AiUnavailableError` and degrades to `None`/skip instead of raising, so a
+  down or rate-limited LLM never breaks ingest or page rendering.
 
 ## Tests
 
 - Network access is forbidden. A guard fixture breaks the `httpx` transport in `tests/` — no test
   may make a real HTTP or LLM call.
 - The parser is tested against saved fixtures in `tests/fixtures/` (HTML pages from `t.me/s/*`).
-- All LLM calls are mocked (fake client), never hitting the Gemini API.
+- All LLM calls are mocked (fake client), never hitting the Gemini API. An autouse fixture in
+  `tests/conftest.py` also breaks `google.genai.Client.__init__` as a second line of defense.
 
 ## Migrations
 

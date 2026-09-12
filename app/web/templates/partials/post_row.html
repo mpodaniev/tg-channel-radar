@@ -2,8 +2,9 @@
   <td>
     <a href="/posts/{{ post.post_id }}">{{ post.text_preview | dash }}</a>
     {% if post.anomaly %}
+      {% set ai = ai_by_post.get(post.post_id) if ai_by_post else none %}
       <span data-testid="anomaly-badge" class="{{ post.anomaly | anomaly_class }}"
-            title="z={{ '%.2f' | format(post.anomaly.score) }}">{{ post.anomaly.direction.value }}</span>
+            title="{{ (ai.anomaly_note if ai else none) or ('z=' ~ '%.2f' | format(post.anomaly.score)) }}">{{ post.anomaly.direction.value }}</span>
     {% endif %}
   </td>
   <td title="{{ post.posted_at | dt }}">{{ post.posted_at | ago }}</td>

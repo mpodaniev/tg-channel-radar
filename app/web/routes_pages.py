@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.services import analytics
+from app.services.ai import tasks as ai_tasks
 from app.web import deps, presenters
 from app.web.routes_api import CHANNEL_ROW_POLL_URL
 from app.web.templating import templates
@@ -29,6 +30,12 @@ async def channel_page(
     session: AsyncSession = Depends(get_session),
 ) -> HTMLResponse:
     data = await analytics.get_channel_analytics(session, username, days=days)
+    digest = await ai_tasks.peek_digest(
+        session, username, days=days, channel_id=data.overview.channel_id
+    )
+    ai_by_post = await ai_tasks.annotations_for_posts(
+        session, [post.post_id for post in data.posts]
+    )
     return templates.TemplateResponse(
         request,
         "channel.html",
@@ -37,7 +44,8 @@ async def channel_page(
             "period_options": deps.PERIOD_OPTIONS,
             "subs_chart": presenters.subscribers_chart(data.subscribers_trend),
             "daily_chart": presenters.daily_chart(data.daily),
-            "digest": None,
+            "digest": digest,
+            "ai_by_post": ai_by_post,
         },
     )
 
@@ -47,8 +55,9 @@ async def post_page(
     request: Request, post_id: int, session: AsyncSession = Depends(get_session)
 ) -> HTMLResponse:
     data = await analytics.get_post_analytics(session, post_id)
+    ai = await ai_tasks.annotation_for_post(session, post_id)
     return templates.TemplateResponse(
         request,
         "post.html",
-        {"post": data, "growth_chart": presenters.post_growth_chart(data.growth)},
+        {"post": data, "growth_chart": presenters.post_growth_chart(data.growth), "ai": ai},
     )

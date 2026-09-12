@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.services import channels
+from app.services.ai import tasks as ai_tasks
+from app.services.ai.client import LlmClient
 from app.services.analytics_types import ChannelOverview
 from app.services.errors import (
     ChannelAlreadyExistsError,
@@ -124,6 +126,25 @@ async def refresh_channel(
     background_tasks.add_task(runner, username)
     overview = await channels.get_overview(session, username)
     return _render_row(request, overview)
+
+
+@router.post("/{username}/digest", response_class=HTMLResponse)
+async def generate_digest(
+    request: Request,
+    username: str,
+    days: int = Depends(deps.period_days),
+    session: AsyncSession = Depends(get_session),
+    client: LlmClient = Depends(deps.ai_client),
+) -> Response:
+    if guard := _reject_non_htmx(request):
+        return guard
+
+    digest = await ai_tasks.get_or_create_digest(session, username, days=days, client=client)
+    return templates.TemplateResponse(
+        request,
+        "partials/digest.html",
+        {"digest": digest, "username": username, "days": days, "attempted": True},
+    )
 
 
 @router.delete("/{username}")

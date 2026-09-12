@@ -177,9 +177,7 @@ async def test_refresh_channel_without_hx_request_redirects(db_session: AsyncSes
     await make_channel(db_session, username="durov", status=ChannelStatus.ERROR.value)
     calls: list[str] = []
     async with await _client_with_runner(db_session, calls) as client:
-        response = await client.post(
-            "/api/channels/durov/refresh", follow_redirects=False
-        )
+        response = await client.post("/api/channels/durov/refresh", follow_redirects=False)
 
     assert response.status_code == 303
     assert response.headers["location"] == "/"

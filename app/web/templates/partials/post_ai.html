@@ -1,0 +1,7 @@
+{% if ai and (ai.category or ai.topics or ai.summary) %}
+  <div class="chart-wrap">
+    {% if ai.category %}<span class="badge">{{ ai.category }}</span>{% endif %}
+    {% for topic in ai.topics %}<span class="badge">{{ topic }}</span>{% endfor %}
+    {% if ai.summary %}<p>{{ ai.summary }}</p>{% endif %}
+  </div>
+{% endif %}
