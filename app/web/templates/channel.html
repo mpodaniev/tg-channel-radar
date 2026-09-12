@@ -55,7 +55,9 @@
   {% endif %}
 </div>
 
-{% include "partials/digest.html" %}
+{% with username = analytics.overview.username, days = analytics.period_days, attempted = false %}
+  {% include "partials/digest.html" %}
+{% endwith %}
 
 <table>
   <thead>

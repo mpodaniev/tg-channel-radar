@@ -180,6 +180,12 @@ tbody tr:last-child td {
   font-size: 0.9rem;
 }
 
+.digest-spinner {
+  margin-left: 8px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
 .anomaly {
   padding: 1px 6px;
   border-radius: 4px;

@@ -24,6 +24,8 @@
 
 <div class="post-text">{{ post.text | dash }}</div>
 
+{% include "partials/post_ai.html" with context %}
+
 <div class="chart-wrap">
   {% if post.growth | length >= 2 %}
     <canvas id="growth-chart"></canvas>
