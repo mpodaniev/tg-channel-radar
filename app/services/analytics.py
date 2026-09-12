@@ -18,7 +18,7 @@ from app.services.analytics_types import (
 from app.services.db_queries import latest_post_metric_snapshot_subquery
 from app.services.errors import ChannelNotFoundInDbError, InvalidPeriodError, PostNotFoundError
 
-DEFAULT_PERIOD_DAYS = 30
+DEFAULT_PERIOD_DAYS = 7
 PERIOD_OPTIONS: Final[tuple[int, ...]] = (7, 30, 90)
 _TEXT_PREVIEW_LENGTH = 160
 
