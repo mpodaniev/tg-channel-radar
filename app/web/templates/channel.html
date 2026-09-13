@@ -29,7 +29,6 @@
   {{ metric_card("Avg views", analytics.overview.avg_views | humanize) }}
   {{ metric_card("Median views", analytics.overview.median_views | humanize) }}
   {{ metric_card("Avg reaction rate", analytics.overview.avg_reaction_rate | ratio_pct) }}
-  {{ metric_card("Avg forward rate", analytics.overview.avg_forward_rate | ratio_pct) }}
   {{ metric_card("Last fetch", analytics.overview.last_fetch_at | ago) }}
 </div>
 
@@ -65,10 +64,8 @@
       <th>Post</th>
       <th>Posted</th>
       <th>Views</th>
-      <th>Forwards</th>
       <th>Reactions</th>
       <th>Reaction rate</th>
-      <th>Forward rate</th>
     </tr>
   </thead>
   <tbody>
