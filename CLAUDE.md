@@ -19,6 +19,14 @@
   every task catches `AiUnavailableError` and degrades to `None`/skip instead of raising, so a
   down or rate-limited LLM never breaks ingest or page rendering.
 
+## Internal endpoints
+
+- `app/web/routes_internal.py` is the only router for endpoints not meant for browsers.
+  `POST /internal/refresh` requires a matching `X-Refresh-Token` header (compared with
+  `secrets.compare_digest`) and stays thin: auth check, then a single call into
+  `app/services/refresh.py`. All batch-refresh logic (which channels are due, ordering, the time
+  budget, per-channel error handling) lives in that service module, not in the route.
+
 ## Tests
 
 - Network access is forbidden. A guard fixture breaks the `httpx` transport in `tests/` — no test
