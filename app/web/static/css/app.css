@@ -144,6 +144,15 @@ tbody tr:last-child td {
   margin-top: 4px;
 }
 
+.hint {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: normal;
+  text-transform: none;
+  cursor: help;
+  border-bottom: 1px dotted var(--text-muted);
+}
+
 .period-filter {
   display: flex;
   gap: 8px;
