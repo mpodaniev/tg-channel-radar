@@ -12,9 +12,7 @@
     {% elif overview.status in failed_channel_statuses %}
       <span class="status-note status-note--error" title="{{ overview.last_error | dash }}">{{ overview.status | status_note }}</span>
     {% else %}
-      {% with health = overview.health %}
-        {% include "partials/health_badge.html" %}
-      {% endwith %}
+      {% include "partials/health_badge.html" %}
     {% endif %}
   </td>
   <td>

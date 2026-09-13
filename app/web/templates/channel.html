@@ -16,7 +16,7 @@
   <div class="metric-card">
     <div class="metric-label">Health</div>
     <div class="metric-value">
-      {% with health = analytics.overview.health %}
+      {% with overview = analytics.overview %}
         {% include "partials/health_badge.html" %}
       {% endwith %}
     </div>

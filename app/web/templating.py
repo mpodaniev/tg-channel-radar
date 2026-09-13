@@ -22,6 +22,7 @@ templates.env.filters["day"] = filters.day
 templates.env.filters["ago"] = filters.ago
 templates.env.filters["dash"] = filters.dash
 templates.env.filters["health_class"] = filters.health_class
+templates.env.filters["health_reason"] = filters.health_reason
 templates.env.filters["anomaly_class"] = filters.anomaly_class
 templates.env.filters["status_note"] = filters.status_note
 templates.env.globals["failed_channel_statuses"] = filters.FAILED_CHANNEL_STATUSES
