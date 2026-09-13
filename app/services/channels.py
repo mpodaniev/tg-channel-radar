@@ -74,6 +74,18 @@ async def mark_pending(session: AsyncSession, username: str) -> None:
     await session.commit()
 
 
+async def list_refreshable(
+    session: AsyncSession, *, statuses: tuple[str, ...], limit: int
+) -> list[str]:
+    result = await session.execute(
+        select(Channel.username)
+        .where(Channel.status.in_(statuses))
+        .order_by(Channel.last_fetch_at.asc().nulls_first())
+        .limit(limit)
+    )
+    return list(result.scalars())
+
+
 async def delete_channel(session: AsyncSession, username: str) -> None:
     result = cast(
         CursorResult, await session.execute(delete(Channel).where(Channel.username == username))
