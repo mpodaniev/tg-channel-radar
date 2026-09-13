@@ -3,6 +3,7 @@ import logging
 from app.config import get_settings
 from app.db import async_session_factory
 from app.models import ChannelStatus
+from app.services import analytics
 from app.services.ai import tasks as ai_tasks
 from app.services.ingest import COLLECT_WINDOW_DAYS, SAFETY_MAX_POSTS, ingest_channel
 
@@ -35,6 +36,21 @@ async def _classify_best_effort(username: str) -> None:
             logger.exception("post classification failed for %s", username)
 
 
+async def _explain_anomalies_best_effort(username: str, channel_id: int) -> None:
+    if not get_settings().ai_auto_classify_enabled:
+        return
+
+    from app.web import deps
+
+    async with async_session_factory() as session:
+        try:
+            anomalies = await analytics.detect_channel_anomalies(session, channel_id)
+            if anomalies:
+                await ai_tasks.explain_anomalies(session, anomalies, client=deps.ai_client())
+        except Exception:
+            logger.exception("anomaly explanation failed for %s", username)
+
+
 async def run_first_ingest(username: str, *, max_posts: int = FIRST_INGEST_MAX_POSTS) -> None:
     async with async_session_factory() as session:
         try:
@@ -59,6 +75,7 @@ async def run_first_ingest(username: str, *, max_posts: int = FIRST_INGEST_MAX_P
 
     if result.status == ChannelStatus.ACTIVE.value:
         await _classify_best_effort(username)
+        await _explain_anomalies_best_effort(username, result.channel_id)
 
     # Chain a full-depth pass right away instead of waiting for the next cron
     # run, so the channel fills in without extra user action.
@@ -89,3 +106,4 @@ async def _run_deep_ingest(
 
     if result.status == ChannelStatus.ACTIVE.value:
         await _classify_best_effort(username)
+        await _explain_anomalies_best_effort(username, result.channel_id)

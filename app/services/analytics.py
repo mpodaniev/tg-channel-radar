@@ -92,6 +92,35 @@ def _build_channel_overview(
     )
 
 
+async def detect_channel_anomalies(
+    session: AsyncSession, channel_id: int, *, limit: int = 5
+) -> list[tuple[int, str, str, float]]:
+    """(post_id, text, direction, score) for anomalous posts in the channel's
+    most recent stats.ANOMALY_WINDOW, capped to `limit` -- mirrors the anomaly
+    detection in get_channel_analytics so the AI layer flags the same posts
+    the dashboard badges do. Posts without text are skipped: the LLM prompt
+    needs post text to explain the anomaly."""
+    latest_metrics = latest_post_metric_snapshot_subquery(
+        select(Post.id).where(Post.channel_id == channel_id)
+    )
+    result = await session.execute(
+        select(Post.id.label("post_id"), Post.text, PostMetricSnapshot.views)
+        .select_from(Post)
+        .outerjoin(latest_metrics, latest_metrics.c.post_id == Post.id)
+        .outerjoin(PostMetricSnapshot, PostMetricSnapshot.id == latest_metrics.c.latest_id)
+        .where(Post.channel_id == channel_id)
+        .order_by(desc(Post.posted_at))
+        .limit(stats.ANOMALY_WINDOW)
+    )
+    rows = result.all()
+    anomalies = stats.detect_anomalies([row.views for row in rows])
+    return [
+        (rows[a.index].post_id, rows[a.index].text, a.direction.value, a.score)
+        for a in anomalies
+        if rows[a.index].text
+    ][:limit]
+
+
 async def get_channel_analytics(
     session: AsyncSession,
     username: str,
