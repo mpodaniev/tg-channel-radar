@@ -1,6 +1,6 @@
 # tg-channel-radar
 
-**Live demo:** _заповнити після деплою_
+**Live demo:** https://channel-radar-0jdn.onrender.com
 
 Live dashboard analytics for public Telegram channels. See `PLAN.md` for the full plan and
 `TEST-TASK.md` for the assignment this project implements.
