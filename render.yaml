@@ -1,6 +1,3 @@
-# Render Blueprint. Check the current key name (`runtime` vs `env`) against Render's Blueprint
-# docs before the first deploy -- this was written from documentation, not verified against a
-# live deploy yet.
 databases:
   - name: channel-radar-db
     plan: free
@@ -28,3 +25,8 @@ services:
         value: prod
       - key: LOG_LEVEL
         value: INFO
+      # Render's default Python (3.14 at the time of writing) doesn't satisfy this project's
+      # pyproject.toml constraint (>=3.12,<3.13) -- pin it explicitly so a Blueprint re-sync
+      # can't silently regress to a build-breaking default again.
+      - key: PYTHON_VERSION
+        value: "3.12.8"
