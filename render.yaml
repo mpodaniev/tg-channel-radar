@@ -1,0 +1,30 @@
+# Render Blueprint. Check the current key name (`runtime` vs `env`) against Render's Blueprint
+# docs before the first deploy -- this was written from documentation, not verified against a
+# live deploy yet.
+databases:
+  - name: channel-radar-db
+    plan: free
+
+services:
+  - type: web
+    name: channel-radar
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      # Render's Postgres connection string uses the `postgresql://` scheme; asyncpg needs
+      # `postgresql+asyncpg://`. Take the connection string from the channel-radar-db dashboard
+      # and add `+asyncpg` after `postgresql` before pasting it here -- do not use `fromDatabase`
+      # auto-linking, it would paste the unmodified scheme.
+      - key: DATABASE_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: REFRESH_TOKEN
+        sync: false
+      - key: APP_ENV
+        value: prod
+      - key: LOG_LEVEL
+        value: INFO
