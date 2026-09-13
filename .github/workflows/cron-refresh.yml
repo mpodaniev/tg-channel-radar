@@ -1,0 +1,16 @@
+name: Cron Refresh
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /internal/refresh
+        run: |
+          curl --fail --show-error --max-time 120 --retry 1 --retry-delay 5 \
+            -X POST "${{ secrets.APP_URL }}/internal/refresh" \
+            -H "X-Refresh-Token: ${{ secrets.REFRESH_TOKEN }}"

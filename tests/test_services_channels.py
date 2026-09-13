@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -135,3 +135,28 @@ async def test_delete_channel_cascades(db_session: AsyncSession) -> None:
 async def test_delete_channel_unknown_raises(db_session: AsyncSession) -> None:
     with pytest.raises(ChannelNotFoundInDbError):
         await channels.delete_channel(db_session, "nope")
+
+
+async def test_list_refreshable_respects_limit(db_session: AsyncSession) -> None:
+    now = datetime.now(UTC)
+    await make_channel(
+        db_session, username="newest", status=ChannelStatus.ACTIVE.value, last_fetch_at=now
+    )
+    await make_channel(
+        db_session,
+        username="middle",
+        status=ChannelStatus.ACTIVE.value,
+        last_fetch_at=now - timedelta(days=1),
+    )
+    await make_channel(
+        db_session,
+        username="oldest",
+        status=ChannelStatus.ACTIVE.value,
+        last_fetch_at=now - timedelta(days=5),
+    )
+
+    result = await channels.list_refreshable(
+        db_session, statuses=(ChannelStatus.ACTIVE.value,), limit=2
+    )
+
+    assert result == ["oldest", "middle"]

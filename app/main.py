@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import engine, get_session
-from app.web import routes_api, routes_pages
+from app.web import routes_api, routes_internal, routes_pages
 from app.web.errors import register_exception_handlers
 from app.web.templating import STATIC_DIR
 
@@ -40,6 +40,7 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     app.include_router(routes_pages.router)
     app.include_router(routes_api.router)
+    app.include_router(routes_internal.router)
 
     return app
 
