@@ -23,9 +23,10 @@ test-assignment deployment with a short expected lifespan, not a long-running pr
 ## Consequences
 
 - Render free services sleep after ~15 minutes of no traffic; the first request after sleeping
-  pays a cold-start cost (roughly 30-50s). The GitHub Actions cron (`cron-refresh.yml`, every 30
-  minutes) keeps the service warm during normal operation, but a demo right after a long idle
-  period may still see one slow request.
+  pays a cold-start cost (roughly 30-50s). The periodic refresh trigger (every 30 minutes — see
+  [README's "Background refresh & deployment"](../../README.md#background-refresh--deployment) for
+  which service and why) keeps the service warm during normal operation, but a demo right after a
+  long idle period may still see one slow request.
 - The free Postgres database is deleted 90 days after creation with no automatic renewal — if the
   project needs to outlive that window, the database must be recreated and `DATABASE_URL`
   re-pasted into the Render dashboard by hand.

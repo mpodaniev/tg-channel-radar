@@ -22,15 +22,15 @@ Environment variables (`.env`, based on `.env.example`):
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
 | `DATABASE_URL` | yes | — | Postgres connection string (`postgresql+asyncpg://...`). Accepts a libpq-style URL with `sslmode`/`channel_binding` query params — normalized in `app/config.py`. |
-| `GEMINI_API_KEY` | no | `""` (empty) | Gemini API key. Empty disables the whole AI layer instead of failing — see [AI layer](#ai-layer-gemini-20-flash). |
+| `GEMINI_API_KEY` | no | `""` (empty) | Gemini API key. Empty disables the whole AI layer instead of failing — see [AI layer](#ai-layer-gemini). |
 | `REFRESH_TOKEN` | yes | — | Shared secret required in the `X-Refresh-Token` header by `POST /internal/refresh`. |
 | `APP_ENV` | no | `local` | `local` or `prod`. |
 | `LOG_LEVEL` | no | `INFO` | Python logging level. |
-| `GEMINI_MODEL` | no | `gemini-3.6-flash` | Gemini model name. |
+| `GEMINI_MODEL` | no | `gemini-3.6-flash` | Gemini model name. The live demo overrides this to `gemini-3.5-flash-lite`, set by hand in Render's environment settings. |
 | `AI_DAILY_CALL_BUDGET` | no | `200` | Max LLM calls per UTC day. |
 | `AI_FAILURE_THRESHOLD` | no | `3` | Consecutive failures before the circuit breaker opens. |
 | `AI_COOLDOWN_MINUTES` | no | `10` | How long the circuit breaker stays open. |
-| `AI_AUTO_CLASSIFY_ENABLED` | no | `false` | Whether ingest auto-classifies new posts (off by default, see [AI layer](#ai-layer-gemini-20-flash)). |
+| `AI_AUTO_CLASSIFY_ENABLED` | no | `false` | Whether ingest auto-classifies new posts (see [What's not implemented, and why](#whats-not-implemented-and-why) for why the live demo overrides this to `true`). |
 
 Steps to run locally:
 
@@ -90,7 +90,7 @@ HTMX and Chart.js are vendored under `app/web/static/vendor/` (not loaded from a
 doesn't depend on an external network or Render's cold start — versions and checksums are recorded
 in `app/web/static/vendor/VERSIONS.md`.
 
-## AI layer (Gemini 2.0 Flash)
+## AI layer (Gemini)
 
 `app/services/ai/` is the only place in the codebase that talks to an LLM. Three tasks:
 
@@ -169,6 +169,18 @@ Facts and time-series measurements are kept in separate tables (full rationale i
 - does **not** run AI classification on refreshed posts — see
   [`docs/adr/0003-llm-gemini-flash.md`](docs/adr/0003-llm-gemini-flash.md) for why.
 
+**The periodic trigger for `/internal/refresh` is [cron-job.org](https://cron-job.org)**, not
+GitHub Actions. GitHub Actions' `schedule` trigger (`.github/workflows/cron-refresh.yml`) was the
+original plan, but in practice its scheduled runs turned out to be unreliable — GitHub's own docs
+warn that jobs queued for the top and half of the hour can be delayed or dropped under shared-
+runner load, and that's exactly what was observed here (a run that should fire every 30 minutes
+fired automatically only once over a multi-hour window). cron-job.org, an external cron-as-a-
+service that just sends an HTTP POST on a schedule, was substituted as the primary trigger and
+verified reliable (`last_fetch_at` advanced steadily, unattended, over 40+ minutes). The GitHub
+Actions workflow is kept as a manual/backup trigger (`workflow_dispatch`, plus its schedule offset
+to `7,37 * * * *` per GitHub's own advice to avoid the exact hour/half-hour) rather than deleted,
+in case cron-job.org itself becomes unavailable.
+
 Manual deploy steps (no dashboard automation from this repo — these are done once by hand):
 
 1. **Render** — create the Blueprint from this repo (`render.yaml` describes both the Web Service
@@ -177,27 +189,35 @@ Manual deploy steps (no dashboard automation from this repo — these are done o
    asyncpg needs `postgresql+asyncpg://...`) before pasting it as `DATABASE_URL`.
 2. In the Web Service's environment settings, set `DATABASE_URL` (from step 1), `GEMINI_API_KEY`,
    `REFRESH_TOKEN` (never in git — `render.yaml` marks them `sync: false`).
-3. **GitHub Secrets** — in this repo's settings, add `APP_URL` (the Render service URL) and
-   `REFRESH_TOKEN` (must match the value set in Render exactly, or every cron run gets a 401).
-4. Confirm the deploy: open `<APP_URL>/healthz`, expect `{"status": "ok", "db": "ok"}`.
-5. Trigger `.github/workflows/cron-refresh.yml` manually (`workflow_dispatch`, "Run workflow" in
-   the Actions tab) and confirm it succeeds, then check that a tracked channel's `last_fetch_at`
-   advanced.
+3. **cron-job.org** — create a free account, add a job that sends `POST <APP_URL>/internal/refresh`
+   every 30 minutes with an `X-Refresh-Token` header set to the same value as Render's
+   `REFRESH_TOKEN`. (The header goes in the job's "Headers" section, not the request body.)
+4. **GitHub Secrets** (backup trigger only) — in this repo's settings, add `APP_URL` (the Render
+   service URL) and `REFRESH_TOKEN` (must match the value set in Render exactly, or every run gets
+   a 401).
+5. Confirm the deploy: open `<APP_URL>/healthz`, expect `{"status": "ok", "db": "ok"}`.
+6. Confirm the periodic trigger: check cron-job.org's execution history for successful runs, and
+   verify a tracked channel's `last_fetch_at` is advancing on its own without manual `curl` calls.
 
 Known limitations of the free-tier setup:
 
 - Render's free service sleeps after ~15 minutes idle; the first request after that pays a
-  ~30-50s cold start. The 30-minute cron keeps it warm during normal use.
+  ~30-50s cold start. The 30-minute cron-job.org trigger keeps it warm during normal use.
 - Render's free Postgres database is deleted 90 days after creation with no automatic renewal —
   recreate it and re-paste `DATABASE_URL` if the project needs to outlive that window.
 - The time budget is checked only *between* channels, not mid-fetch — one unusually slow channel
   can still push a single `/internal/refresh` call somewhat past 60s.
 
-## Що не реалізовано і чому
+## What's not implemented, and why
 
-- **`ai_auto_classify_enabled = false`** — Gemini's free-tier daily quota (20 requests/day) was
-  getting exhausted by automatic classification on every ingest, leaving nothing for manually
-  generating a digest. See `docs/adr/0003-llm-gemini-flash.md`.
+- **`ai_auto_classify_enabled` defaults to `false`** — with the original model (Gemini 2.5 Flash
+  Lite's free tier, 20 requests/day), automatic classification on every ingest exhausted the quota
+  almost immediately, leaving nothing for manually generating a digest. See
+  `docs/adr/0003-llm-gemini-flash.md`. The live demo has it set to `true` via Render's environment
+  variables (not committed to git, per `render.yaml`'s `sync: false`): after switching to Gemini
+  3.5 Flash Lite (the original model name was deprecated), the free-tier quota comfortably covers
+  classification on every new channel added during a review. Run locally with no override and the
+  flag stays off, matching the code default.
 - **Cron refresh skips AI classification** — the same daily quota budget; running classification
   on every 30-minute cron tick (up to 48 times/day) would exhaust it almost immediately.
 - **Reactions are parsed only when present in the `t.me/s/` preview** — Telegram's anonymous web
