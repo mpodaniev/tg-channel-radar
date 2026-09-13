@@ -83,6 +83,47 @@ async def test_anomalous_post_is_flagged(db_session: AsyncSession) -> None:
     assert len(flagged) == 1
 
 
+async def test_detect_channel_anomalies_flags_viral_post_with_text(
+    db_session: AsyncSession,
+) -> None:
+    channel = await _make_channel(db_session)
+    for i in range(6):
+        post = await make_post(
+            db_session, channel, message_id=i, posted_at=NOW - timedelta(hours=6 - i)
+        )
+        await add_metric(db_session, post, views=100, captured_at=post.posted_at)
+
+    viral_post = await make_post(db_session, channel, message_id=100, posted_at=NOW, text="viral")
+    await add_metric(db_session, viral_post, views=50_000, captured_at=NOW)
+
+    anomalies = await analytics.detect_channel_anomalies(db_session, channel.id)
+
+    assert len(anomalies) == 1
+    post_id, text, direction, score = anomalies[0]
+    assert post_id == viral_post.id
+    assert text == "viral"
+    assert direction == "spike"
+    assert score > 0
+
+
+async def test_detect_channel_anomalies_skips_posts_without_text(
+    db_session: AsyncSession,
+) -> None:
+    channel = await _make_channel(db_session)
+    for i in range(6):
+        post = await make_post(
+            db_session, channel, message_id=i, posted_at=NOW - timedelta(hours=6 - i)
+        )
+        await add_metric(db_session, post, views=100, captured_at=post.posted_at)
+
+    viral_post = await make_post(db_session, channel, message_id=100, posted_at=NOW, text=None)
+    await add_metric(db_session, viral_post, views=50_000, captured_at=NOW)
+
+    anomalies = await analytics.detect_channel_anomalies(db_session, channel.id)
+
+    assert anomalies == []
+
+
 async def test_unknown_username_raises(db_session: AsyncSession) -> None:
     with pytest.raises(ChannelNotFoundInDbError):
         await analytics.get_channel_analytics(db_session, "does-not-exist", now=NOW)

@@ -18,7 +18,11 @@ async def index(request: Request, session: AsyncSession = Depends(get_session)) 
     return templates.TemplateResponse(
         request,
         "index.html",
-        {"channels": overviews, "channel_row_poll_url": CHANNEL_ROW_POLL_URL},
+        {
+            "channels": overviews,
+            "channel_row_poll_url": CHANNEL_ROW_POLL_URL,
+            "overview_period_days": analytics.DEFAULT_PERIOD_DAYS,
+        },
     )
 
 

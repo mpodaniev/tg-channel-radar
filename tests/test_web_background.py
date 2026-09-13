@@ -22,11 +22,13 @@ def _stub_session_factory(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(background, "async_session_factory", _fake_session_factory)
 
 
-def _result(*, status: str = ChannelStatus.ACTIVE.value, posts_seen: int = 0) -> object:
+def _result(
+    *, status: str = ChannelStatus.ACTIVE.value, posts_seen: int = 0, channel_id: int = 1
+) -> object:
     return type(
         "Result",
         (),
-        {"status": status, "posts_seen": posts_seen},
+        {"status": status, "posts_seen": posts_seen, "channel_id": channel_id},
     )()
 
 
@@ -134,3 +136,69 @@ async def test_classify_best_effort_runs_when_enabled(monkeypatch: pytest.Monkey
     await background._classify_best_effort("durov")
 
     assert calls == ["durov"]
+
+
+async def test_explain_anomalies_best_effort_skipped_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        background, "get_settings", lambda: _FakeSettings(ai_auto_classify_enabled=False)
+    )
+    calls: list[int] = []
+
+    async def _fake_detect(session, channel_id, **kwargs):
+        calls.append(channel_id)
+        return []
+
+    monkeypatch.setattr(background.analytics, "detect_channel_anomalies", _fake_detect)
+
+    await background._explain_anomalies_best_effort("durov", 1)
+
+    assert calls == []
+
+
+async def test_explain_anomalies_best_effort_runs_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_session_factory(monkeypatch)
+    monkeypatch.setattr(
+        background, "get_settings", lambda: _FakeSettings(ai_auto_classify_enabled=True)
+    )
+    monkeypatch.setattr(deps, "ai_client", lambda: object())
+
+    async def _fake_detect(session, channel_id, **kwargs):
+        return [(1, "post text", "spike", 4.2)]
+
+    explain_calls: list[object] = []
+
+    async def _fake_explain(session, anomalies, *, client):
+        explain_calls.append(anomalies)
+        return {}
+
+    monkeypatch.setattr(background.analytics, "detect_channel_anomalies", _fake_detect)
+    monkeypatch.setattr(background.ai_tasks, "explain_anomalies", _fake_explain)
+
+    await background._explain_anomalies_best_effort("durov", 1)
+
+    assert explain_calls == [[(1, "post text", "spike", 4.2)]]
+
+
+async def test_explain_anomalies_best_effort_skips_llm_call_when_no_anomalies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_session_factory(monkeypatch)
+    monkeypatch.setattr(
+        background, "get_settings", lambda: _FakeSettings(ai_auto_classify_enabled=True)
+    )
+    monkeypatch.setattr(deps, "ai_client", lambda: object())
+
+    async def _fake_detect(session, channel_id, **kwargs):
+        return []
+
+    async def _fake_explain(session, anomalies, *, client):
+        raise AssertionError("explain_anomalies should not be called with an empty list")
+
+    monkeypatch.setattr(background.analytics, "detect_channel_anomalies", _fake_detect)
+    monkeypatch.setattr(background.ai_tasks, "explain_anomalies", _fake_explain)
+
+    await background._explain_anomalies_best_effort("durov", 1)

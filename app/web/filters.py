@@ -1,6 +1,7 @@
 from datetime import UTC, date, datetime
 
-from app.services.analytics_types import Anomaly, SourceHealth
+from app.services.analytics_types import Anomaly, ChannelOverview, SourceHealth
+from app.services.stats import HEALTH_RED_FAILURES, HEALTH_STALE_AFTER
 
 _STATUS_NOTES: dict[str, str] = {
     "pending": "Collecting first posts…",
@@ -90,6 +91,22 @@ def dash(value: object) -> object:
 
 def health_class(health: SourceHealth) -> str:
     return f"badge badge--{health.value}"
+
+
+def health_reason(overview: ChannelOverview, now: datetime | None = None) -> str:
+    if overview.status in FAILED_CHANNEL_STATUSES:
+        return status_note(overview.status)
+    if overview.consecutive_failures >= HEALTH_RED_FAILURES:
+        return f"{overview.consecutive_failures} failed fetches in a row"
+    if overview.last_fetch_at is None:
+        return "never fetched yet"
+    now = now or datetime.now(UTC)
+    stale_for = now.astimezone(UTC) - overview.last_fetch_at.astimezone(UTC)
+    if stale_for > HEALTH_STALE_AFTER:
+        return f"not refreshed since {ago(overview.last_fetch_at, now)}"
+    if overview.consecutive_failures >= 1:
+        return f"{overview.consecutive_failures} failed fetch(es) since last success"
+    return "refreshing normally"
 
 
 def anomaly_class(anomaly: Anomaly | None) -> str:

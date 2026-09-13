@@ -107,15 +107,17 @@ tbody tr:last-child td {
 .badge {
   display: inline-block;
   padding: 2px 8px;
+  margin-right: 4px;
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 600;
-  color: #fff;
+  background: var(--border);
+  color: var(--text);
 }
 
-.badge--green { background: var(--green); }
-.badge--yellow { background: var(--yellow); }
-.badge--red { background: var(--red); }
+.badge--green { background: var(--green); color: #fff; }
+.badge--yellow { background: var(--yellow); color: #fff; }
+.badge--red { background: var(--red); color: #fff; }
 
 .metrics {
   display: grid;
@@ -142,6 +144,15 @@ tbody tr:last-child td {
   font-size: 1.4rem;
   font-weight: 600;
   margin-top: 4px;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: normal;
+  text-transform: none;
+  cursor: help;
+  border-bottom: 1px dotted var(--text-muted);
 }
 
 .period-filter {

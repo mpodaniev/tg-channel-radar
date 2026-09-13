@@ -15,10 +15,8 @@
 
 <div class="metrics">
   {{ metric_card("Views", post.post.views | humanize) }}
-  {{ metric_card("Forwards", post.post.forwards | humanize) }}
   {{ metric_card("Reactions", post.post.reactions_total | humanize) }}
   {{ metric_card("Reaction rate", post.post.reaction_rate | ratio_pct) }}
-  {{ metric_card("Forward rate", post.post.forward_rate | ratio_pct) }}
   {{ metric_card("Posted", post.post.posted_at | dt) }}
 </div>
 

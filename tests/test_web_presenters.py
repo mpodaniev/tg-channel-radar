@@ -11,10 +11,10 @@ class TestSubscribersChart:
         assert result == {"labels": [], "series": [{"label": "Subscribers", "data": []}]}
         json.dumps(result)
 
-    def test_datetime_becomes_iso_string(self) -> None:
+    def test_datetime_becomes_human_readable_label(self) -> None:
         point = TrendPoint(captured_at=datetime(2026, 9, 11, 12, 0, tzinfo=UTC), value=100)
         result = presenters.subscribers_chart([point])
-        assert result["labels"] == ["2026-09-11T12:00:00+00:00"]
+        assert result["labels"] == ["2026-09-11 12:00 UTC"]
         assert result["series"][0]["data"] == [100]
         json.dumps(result)
 
