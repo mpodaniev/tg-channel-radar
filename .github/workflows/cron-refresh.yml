@@ -2,7 +2,9 @@ name: Cron Refresh
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    # Offset from :00/:30 -- GitHub's shared runners see the heaviest load exactly on the
+    # hour and half-hour, and scheduled runs at those marks can be delayed or dropped.
+    - cron: "7,37 * * * *"
   workflow_dispatch: {}
 
 jobs:
